@@ -1,0 +1,35 @@
+:toc:
+:sectnums:
+:toclevels: 5
+:sectnumlevels: 5
+:showcomments:
+:xrefstyle: short
+:icons: font
+:source-highlighter: coderay
+:tick: &#x2714;
+:pound: &#xA3;
+
+= ADA - Add Directory Alias
+
+*ada* adds a directory alias for the current directory into the users home folder on Windows
+
+== Commands and options
+
+* *settings* display settings.
+* *esettings* edit settings using Windows editor or configured editor if it is configured and it exists.
+* *defsettings* go back to default settings.
+* *list* - lists all directory aliases.
+* *listthis* - lists the directory aliases for the current directory.
+* *add* - adds a directory alias. Will report an error if the alias already exists. `*-r*` = replace and don't report an error.
+* *remove* - deletes a directory alias.
+* *addcommon* - adds the common dev alias as follows:
+** *vc17* - go to the Visual Studio C++ dev folder under *c:\program files (86)\Microsoft Visual Studio\2017*
+** *vc19* - go to the Visual Studio C++ dev  folder under *c:\program files (86)\Microsoft Visual Studio\2019*
+** *vc* - same as vc19
+** *eal* - edit aliases.
+** *edal* - edit directory aliases.
+** *efunc* - edit bash functions
+** *ebash* - edit bash *.bashrc*
+** *etcc* - edit tcc startup files
+** *e4* - same as etcc for historical reasons
+** *ral* - run aliases and directory aliases from their respective files. Also run shell functions in bash.

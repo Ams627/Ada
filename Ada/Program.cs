@@ -57,6 +57,8 @@ namespace Ada
             {
                 var settings = new Settings();
                 settings.FirstRunCheck();
+                settings.ReadSettings();
+
                 return CommandLine.Parser.Default.ParseArguments<PrintSettings, EditSettings, DefaultSettings, AddOptions, ListOptions, RemoveOptions>(args)
                 .MapResult(
                     (PrintSettings opts) => settings.Print(),

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Linq;
 
 namespace Ada
@@ -52,12 +53,99 @@ namespace Ada
         internal int Add(AddOptions addOptions)
         {
             CheckSettings();
-            var bashDirAliasesPath = settings.GetSetting("paths", "bash-dir-aliases-path");
-            if (!File.Exists(bashDirAliasesPath))
+
+            if (haveBash)
             {
-                
+                AddBash(addOptions.Alias, addOptions.Replace);
             }
+
+            if (haveTcc)
+            {
+                AddTcc(addOptions.Alias, addOptions.Replace);
+            }
+
+            if (haveCmd)
+            {
+                AddCmd(addOptions.Alias, addOptions.Replace);
+            }
+
+            if (havePs)
+            {
+                AddPs(addOptions.Alias, addOptions.Replace);
+            }
+           
             return 0;
+        }
+
+        private void AddPs(string alias, bool replace)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void AddCmd(string alias, bool replace)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void AddTcc(string alias, bool replace)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void AddBash(string alias, bool replace)
+        {
+            var tmp = settings.GetSetting("paths", "bash-dir-aliases-path");
+            var bashDirAliasesPath = Environment.ExpandEnvironmentVariables(tmp);
+            var expanded = !bashDirAliasesPath.Contains("%");
+
+            if (!expanded)
+            {
+                throw new Exception($"Couldn't expand environment variables in bash path {bashDirAliasesPath}");
+            }
+
+            var cwd = Directory.GetCurrentDirectory();
+
+            var lines = new List<string>();
+            if (File.Exists(bashDirAliasesPath))
+            {
+                var aliasPattern = @"^\s*alias\s+([A-Z0-9_-]+)\s*=";
+                lines = File.ReadAllLines(bashDirAliasesPath).ToList();
+                var aliases = lines
+                        .Select((x, i) => new { LineNumber = i, Line = x, Match = Regex.Match(x, aliasPattern, RegexOptions.IgnoreCase) })
+                        .Where(y => y.Match.Success && y.Match.Groups.Count > 1)
+                        .Select(z => new { z.LineNumber, Alias = z.Match.Groups[1].Value });
+                var aliasesDict = aliases.ToLookup(x => x.Alias);
+                var corrupt = aliasesDict.Where(x => x.Count() > 1);
+                foreach (var corruption in corrupt)
+                {
+                    Console.WriteLine($"Corrupt alias file {bashDirAliasesPath} - the alias {corruption.Key} appears more than once.");
+                    Console.WriteLine($"Occurs at line(s) {string.Join(" ", corruption.Select(x=>x.LineNumber + 1))}");
+                }
+                if (corrupt.Count() > 0)
+                {
+                    throw new Exception("Exiting.");
+                }
+                   
+                if (aliasesDict[alias].Count() > 0)
+                {
+                    var lineNumber = aliasesDict[alias].First().LineNumber;
+                    if (!replace)
+                    {
+                        throw new Exception($"alias {alias} already defined at line {lineNumber + 1} in {bashDirAliasesPath}");
+                    }
+                    lines[lineNumber] = $"alias {alias}=\"cd '{cwd}'\"";
+                }
+                else
+                {
+                    lines.Add($"alias {alias}=\"cd '{cwd}'\"");
+                }
+            }
+            else
+            {
+                lines.Add($"alias {alias}=\"cd '{cwd}'\"");
+            }
+
+            File.WriteAllLines(bashDirAliasesPath, lines);
         }
 
         internal int List()

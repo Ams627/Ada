@@ -103,49 +103,66 @@ namespace Ada
                 throw new Exception($"Couldn't expand environment variables in bash path {bashDirAliasesPath}");
             }
 
-            var cwd = Directory.GetCurrentDirectory();
+            var aliasPattern = @"^\s*alias\s+([A-Z0-9_-]+)\s*=";
+            var creationPattern = "alias @1=\"cd '@2'\"";
 
-            var lines = new List<string>();
-            if (File.Exists(bashDirAliasesPath))
+            ProcessAlias(alias, bashDirAliasesPath, aliasPattern, creationPattern, replace);
+
+        }
+
+        /// <summary>
+        /// Add an alias to the specified file
+        /// </summary>
+        /// <param name="alias">The alias</param>
+        /// <param name="dirAliasesPath">The dir aliases file</param>
+        /// <param name="aliasPattern">The regex to extract existing aliases from the file (to check for existence or dups)</param>
+        /// <param name="creationPattern">The entire line used to define an alias with the literal string @1 marking the alias and the 
+        /// literal string @2 marking the expansion</param>
+        /// <param name="replace">If true, replace an existing alias with the same name</param>
+        private void ProcessAlias(string alias, string dirAliasesPath, string aliasPattern, string creationPattern, bool replace)
+        {
+            var cwd = Directory.GetCurrentDirectory();
+            var outputLine = creationPattern.Replace("@1", alias).Replace("@2", cwd);
+
+            var lines = File.Exists(dirAliasesPath) ? File.ReadAllLines(dirAliasesPath).ToList() : new List<string>();
+            var aliases = lines
+                    .Select((x, i) => new { LineNumber = i, Line = x, Match = Regex.Match(x, aliasPattern, RegexOptions.IgnoreCase) })
+                    .Where(y => y.Match.Success && y.Match.Groups.Count > 1)
+                    .Select(z => new { z.LineNumber, Alias = z.Match.Groups[1].Value });
+
+            var aliasLookup = aliases.ToLookup(x => x.Alias);
+
+            // find aliases which have a count greater than 1 - this indicates a corrupt alias file - we should never define
+            // an alias more than once:
+            var corrupt = aliasLookup.Where(x => x.Count() > 1);
+            foreach (var corruption in corrupt)
             {
-                var aliasPattern = @"^\s*alias\s+([A-Z0-9_-]+)\s*=";
-                lines = File.ReadAllLines(bashDirAliasesPath).ToList();
-                var aliases = lines
-                        .Select((x, i) => new { LineNumber = i, Line = x, Match = Regex.Match(x, aliasPattern, RegexOptions.IgnoreCase) })
-                        .Where(y => y.Match.Success && y.Match.Groups.Count > 1)
-                        .Select(z => new { z.LineNumber, Alias = z.Match.Groups[1].Value });
-                var aliasesDict = aliases.ToLookup(x => x.Alias);
-                var corrupt = aliasesDict.Where(x => x.Count() > 1);
-                foreach (var corruption in corrupt)
+                Console.Error.WriteLine($"Corrupt alias file {dirAliasesPath} - the alias {corruption.Key} appears more than once.");
+                Console.Error.WriteLine($"Occurs at line(s) {string.Join(" ", corruption.Select(x => x.LineNumber + 1))}");
+            }
+            if (corrupt.Count() > 0)
+            {
+                throw new Exception("Exiting.");
+            }
+
+            // if the alias exists once and only once already:
+            if (aliasLookup[alias].Count() > 0)
+            {
+                var lineNumber = aliasLookup[alias].First().LineNumber;
+                if (!replace)
                 {
-                    Console.WriteLine($"Corrupt alias file {bashDirAliasesPath} - the alias {corruption.Key} appears more than once.");
-                    Console.WriteLine($"Occurs at line(s) {string.Join(" ", corruption.Select(x=>x.LineNumber + 1))}");
+                    // it exists and we were not asked to replace it:
+                    throw new Exception($"alias {alias} already defined at line {lineNumber + 1} in {dirAliasesPath}");
                 }
-                if (corrupt.Count() > 0)
-                {
-                    throw new Exception("Exiting.");
-                }
-                   
-                if (aliasesDict[alias].Count() > 0)
-                {
-                    var lineNumber = aliasesDict[alias].First().LineNumber;
-                    if (!replace)
-                    {
-                        throw new Exception($"alias {alias} already defined at line {lineNumber + 1} in {bashDirAliasesPath}");
-                    }
-                    lines[lineNumber] = $"alias {alias}=\"cd '{cwd}'\"";
-                }
-                else
-                {
-                    lines.Add($"alias {alias}=\"cd '{cwd}'\"");
-                }
+                lines[lineNumber] = outputLine;
             }
             else
             {
-                lines.Add($"alias {alias}=\"cd '{cwd}'\"");
+                // the alias didn't exist already so add it to the end of the file:
+                lines.Add(outputLine);
             }
 
-            File.WriteAllLines(bashDirAliasesPath, lines);
+            File.WriteAllLines(dirAliasesPath, lines);
         }
 
         internal int List()

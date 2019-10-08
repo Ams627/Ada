@@ -8,9 +8,18 @@ using System.Web;
 
 namespace Ada
 {
-    class Settings
+    interface ISettings
+    {
+        string[] Sections { get;}
+        bool DoesSettingExist(string section, string setting);
+        string GetSetting(string section, string setting);
+        IEnumerable<string> GetListSetting(string section, string setting);
+    }
+    class Settings : ISettings
     {
         readonly Dictionary<string, Dictionary<string, string>> iniOptions = new Dictionary<string, Dictionary<string, string>>();
+
+        string[] ISettings.Sections => iniOptions.Keys.ToArray();
 
         private static string GetSettingsPath()
         {
@@ -102,16 +111,60 @@ namespace Ada
             var currentSection = "";
             foreach (var line in lines.Where(x=>!x.StartsWith("#")))
             {
+                // test for section name in square brackets and if found store in current section:
                 if (line.StartsWith("[") && line.EndsWith("]"))
                 {
-                    currentSection = line;
+                    currentSection = line.Substring(1, line.Length - 2);
+                    iniOptions[currentSection] = new Dictionary<string, string>();
                 }
+                // options are name=value pairs so test for a line containing a single equals:
                 else if (line.Count(x=>x == '=') == 1)
                 {
-                    var split = line.Split('=').Select(x => x.Trim());
-                     lexeefefec;
+                    var split = line.Split('=').Select(x => x.Trim()).ToArray();
+                    if (iniOptions[currentSection].ContainsKey(split[0]))
+                    {
+                        Console.Error.WriteLine($"Warning: key {split[0]} defined more than once in section {currentSection}.");
+                        Console.Error.WriteLine($"Second definition ignored.");
+                    }
+                    else
+                    {
+                        iniOptions[currentSection].Add(split[0], split[1]);
+                    }
                 }
             }
+        }
+
+        public string GetSetting(string section, string setting)
+        {
+            var result = "";
+            if (iniOptions.ContainsKey(section) && iniOptions[section].ContainsKey(setting))
+            {
+                result = iniOptions[section][setting];
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// return an IEnumerable<string> from a setting composed of a comma-separated list.
+        /// spaces are stripped from each item.
+        /// </summary>
+        /// <param name="section"></param>
+        /// <param name="setting"></param>
+        /// <returns></returns>
+        public IEnumerable<string> GetListSetting(string section, string setting)
+        {
+            var result = "";
+            if (iniOptions.ContainsKey(section) && iniOptions[section].ContainsKey(setting))
+            {
+                result = iniOptions[section][setting];
+            }
+
+            return result.Split(',').Select(x => x.Trim());
+        }
+
+        public bool DoesSettingExist(string section, string setting)
+        {
+            return iniOptions.ContainsKey(section) && iniOptions[section].ContainsKey(setting);
         }
     }
 }

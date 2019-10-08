@@ -30,6 +30,11 @@ namespace Ada
           Default = false,
           HelpText = "Replace the directory alias if it already exists.")]
         public bool Replace { get; set; }
+
+        [Value(0, MetaName = "alias",
+        HelpText = "alias to be added.",
+        Required = true)]
+        public string Alias { get; set; }
     }
 
     [Verb("list", HelpText = "List all directory aliases.")]
@@ -57,16 +62,15 @@ namespace Ada
             {
                 var settings = new Settings();
                 settings.FirstRunCheck();
-                settings.ReadSettings();
 
                 return CommandLine.Parser.Default.ParseArguments<PrintSettings, EditSettings, DefaultSettings, AddOptions, ListOptions, RemoveOptions>(args)
                 .MapResult(
                     (PrintSettings opts) => settings.Print(),
                     (EditSettings opts) => settings.Edit(),
                     (DefaultSettings opts) => settings.Default(),
-                    (AddOptions opts)=>new Alias().Add(opts),
-                    (ListOptions opts) => new Alias().List(),
-                    (RemoveOptions opts) => new Alias().Remove(),
+                    (AddOptions opts) => { settings.ReadSettings(); return new Alias(settings).Add(opts); },
+                    (ListOptions opts) => new Alias(settings).List(),
+                    (RemoveOptions opts) => new Alias(settings).Remove(),
                     errs => 1);;
 
             }
